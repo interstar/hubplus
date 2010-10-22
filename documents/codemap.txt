@@ -1,0 +1,127 @@
+
+Hub+ Codemap
+
+Important Apps (in the apps. directory)
+
+
+1) about
+Currently, we haven't changed the app. But the templates directory contains static pages.
+
+django_evolution  (copy of evolution, an app. which helps you evolve the db-schema when the ORM schema evolves, not changed)
+
+2) account
+Forked from Pinax original. 
+Important functions in view.py include 
+- home() which handles front page for both logged-in and non logged-in users (including getting from our own Feed app.)
+- apply(), site_invite(), and proxied signup functions based on our own proxying structure
+There are some other original account management functions left over in views.py which are not used and probably incompatible with current Hub+
+
+3) avatar
+This is the Pinax avatar app. which we've forked. Mainly we've replaced the reference to the User in the original Avatar class with a reference to a GenericReference. This allows us to attach avatars to TgGroups as well as Users. views.py remains largely the same except for the important new function "get_avatar" which actually returns the avatar image file itself as opposed to the URL. (This was written to support getting Hub+ avatars in HubSpace, and is probably where annoying avatar related errors are coming from.)
+
+*) django403
+Captures the 403 error and gives it a different page. This is where we'd *like* to add information about what specifically caused the permission error. (Useful for debugging and to give the users better information.) Unfortunately, by the time we get access to this, (in the middleware.py file), our PlusPermissionNoAccessException and the information it contains, seems to have been thrown away.
+
+
+*) friends_app       
+Not used
+
+
+*) messages       
+Forked from Pinax original. The inter-user messaging app.
+
+The main changes here are to do with putting the functions within a single tabbed page as UI. The data-model for messages is unchanged, but we now have new urls which call a view in_out_trash_comp(), a single view function which replaces the earlier in / out / trash and compose views.
+
+*) microblogging  
+This is the original Pinax microblogging app. which we've forked. I was in the process of moving from this to the new "plus_feed" app. but there's still some parts of this in use. Ideally, all important feed-related code should be migrated to plus_feed and microblogging should be decommissioned.
+
+Important in models.py : 
+We no longer use TweetInstance or Tweet for individual messages, but we do still use the Following class (and the FollowingManager) to represent and manipulat who's following who. 
+
+In terms of views.py / urls.py we still use the views for managing follower relationships (mainly toggle_follow and toggle_group) AND for posting a new tweet (via. new ajax UI)
+
+forms.py has been modified to use the new FeedItem model from the plus_feed app.
+
+
+*) plus_feed
+New app. for FeedItems. models.py defines the new FeedItem class and the FeedManager. views.py is for new views of feeds, including RSS output. But, adding feed-items is still in microblogging.
+
+*) plus_flakes (never started, should be removed if found)
+
+*) plus_comments 
+Intended as a custom wrapper around the default django threaded-comments app. This is where we'd be able to modify the comments to fit them into our permissioning / notification feed framework. However, comments are still *currently* relying on the standard Django threaded_comments app. (Which is in site-packages)
+
+*) plus_permissions  
+An all new app. to support our permissioning framework. Includes models, views. Importantly, decorators for wrapping other views to ensure that they permission-protect objects that they work with. All the permission testing code lives in this app including "has_access" (in models).
+
+*) plus_wiki
+Our new app. that defines a WikiPage. Note that our WikiPages are subclasses of a class called "ResourceCommon" defined in the plus_groups app. resources_common.py which has the common code for handling anything that lives "inside" a TgGroup.
+
+*) synced
+The app. for making syncer connections with HubSpace. Syncer calls *into* Hub+ via http (handlers in views.py). Hub+ talks out to syncer through the functions in sync_tools.py. models.py is used just to keep a single dictionary of the connection id in the database (only place we can guarantee it's seen everywhere in django). __init__.py sets up the single-sign on. 
+
+*) plus_contacts
+A new app. designed for managing lists of Applications and Contacts. In Hub+ every new application or invite creates a Contact. If the Contact goes through the right process of accepting an invitation or having an appllication accepted, a User is created. models.py defines Applications and Contacts (+ the logic of changing status)
+
+*) plus_groups  
+Our main app. that wraps a TgGroup model table (originally from HubSpace) and uses it as the main organizing principle for people and content within Hub+.
+
+A couple of notes : 
+- Hubs are just a particular kind of TgGroup
+- models.py also handles group membership, views.py handles group joing / leaving
+- views.py also has various functions for setting up searches within groups
+- views.py has functions for adding resources to groups such as wiki-pages, uploaded files
+- resources_common.py has common code for these resources
+- models.py defines Location, which in HubSpace is more like the UID of a particular Hub. plus_groups has code to manage this.
+- plus_groups has code to create groups including creating Hubs
+- get_enclosures and get_enclosure_ids are functions to help find member of groups that use the redis cache for speed
+- MemberInvite is for invitations to groups.
+
+
+*) plus_resources
+This is a new app. Slightly confusingly named. "Resource" is a model representing uploaded files. Files are always uploaded within a group. 
+
+Resources are a subclass of ResourceCommon (from plus_groups)
+ 
+
+*) profiles
+The original Pinax Profile class has been changed significantly. One of the main changes is that we share data between Hub+ and HubSpace in the same database. And HubSpace stores information in its user class (tg_user table)
+
+Therefore, we've changed Profile so that many fields are now proxies to equivalent fields that we've hacked into Django's User class (see plus_user). Code for this is in models.py.
+
+The profiles app. also defines HostQuestions, survey questions that were requested by hosts and psychosocial. Ideally, these should be moved to individual generic questions so that hosts can define their own polls. 
+
+
+*) photos (not used)
+
+*) plus_explore
+
+New app. for searching and full text search in Hub+.
+
+- Defines an Explorable mixin for things you want to explore.
+- The important work is done by plus_search inside views.py. This is the main search routine in Hub+
+
+
+*) plus_lib
+A new library of generic helpers, not tied to any particular app. or area of the data-model, although some essential work goes on here that, perhaps should be moved elsewhere.
+
+Important features :
+- views.py / urls.py contains the generic "attribute editor" functions (that allow attributes of any permissionable model class to be edited)
+- utils.py provides an HTMLField for forms, and some extra functions to fiddle around with details like hub names within the installation.
+- users.py is not used
+- search.py breaks out a couple of helper functions for constructing searches
+- redis_lib.py - most of the routines for using the redis cache
+- parse_json.py - a helpful json decorator
+- lighttpd_serve.py - code for serving files via. lighttpd. This is derived from Django's own static file serving code and behaves similarly, but ultimately delivers the file by sending x-send-file to lightty instead of outputting the file itself.
+- htmldiff.py - a copy of Ian Bicking's library for comparing files
+- fixes.py - some fixes for (possibly) broken data ...
+- context_processors.py - this sets up some important names in the main Django "context" that the installation uses
+
+
+*) plus_tags
+*) remote_syncing
+*) planet
+*) plus_links
+*) plus_user
+*) resources_search
+
